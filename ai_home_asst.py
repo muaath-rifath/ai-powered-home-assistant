@@ -14,7 +14,7 @@ gc.collect()
 
 # WiFi credentials
 SSID = "ECE Dept Wi-Fi 1"
-PASSWORD = "Wifi-1@Ece"
+PASSWORD = "@@@"
 
 # Groq API settings (placeholder)
 GROQ_API_KEY = "your_api_key_here"
