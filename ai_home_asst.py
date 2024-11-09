@@ -3,7 +3,6 @@ from machine import Pin
 import network
 import time
 import gc
-from _thread import start_new_thread
 
 # Enable garbage collection
 gc.enable()
@@ -16,34 +15,41 @@ PASSWORD = "Wifi-1@Ece"
 # LED setup
 led = Pin("LED", Pin.OUT)
 
-def control_led(state="ON", delay=0.5, times=None, duration=None):
+def connect_wifi():
     """
-    Basic LED control function
+    WiFi connection function
     """
-    def blink():
-        for _ in range(times or 1):
-            led.toggle()
-            time.sleep(delay)
-            led.toggle()
-            time.sleep(delay)
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    
+    if not wlan.isconnected():
+        print('Connecting to WiFi...')
+        wlan.connect(SSID, PASSWORD)
+        
+        max_wait = 10
+        while max_wait > 0:
+            if wlan.status() >= 3:
+                break
+            max_wait -= 1
+            print('Waiting...')
+            time.sleep(1)
 
-    if state == "BLINK" and times is not None:
-        start_new_thread(blink, ())
-        return "LED blinking started"
+        if wlan.status() != 3:
+            raise RuntimeError('Network connection failed')
     
-    elif state == "ON":
-        led.value(1)
-        if duration:
-            time.sleep(duration)
-            led.value(0)
-        return "LED turned ON"
-    
-    elif state == "OFF":
-        led.value(0)
-        return "LED turned OFF"
+    print('Connected')
+    status = wlan.ifconfig()
+    print('IP:', status[0])
+    return wlan
 
 def main():
-    control_led("BLINK", times=3)
+    try:
+        wlan = connect_wifi()
+        led.value(1)  # Indicate successful connection
+        time.sleep(2)
+        led.value(0)
+    except Exception as e:
+        print(f"Connection failed: {e}")
 
 if __name__ == "__main__":
     main()
