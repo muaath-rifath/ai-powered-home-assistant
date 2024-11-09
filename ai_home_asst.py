@@ -28,34 +28,49 @@ UART_TX = (bluetooth.UUID("6E400003-B5A3-F393-E0A9-E50E24DCCA9E"), bluetooth.FLA
 UART_RX = (bluetooth.UUID("6E400002-B5A3-F393-E0A9-E50E24DCCA9E"), bluetooth.FLAG_WRITE)
 UART_SERVICE = (UART_UUID, (UART_TX, UART_RX))
 
-def connect_wifi():
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    
-    if not wlan.isconnected():
-        print('Connecting to WiFi...')
-        wlan.connect(SSID, PASSWORD)
+class BLESerial:
+    def __init__(self, name="Pico-AI"):
+        self._ble = bluetooth.BLE()
+        self._ble.active(True)
+        self._ble.irq(self._irq)
         
-        max_wait = 10
-        while max_wait > 0:
-            if wlan.status() >= 3:
-                break
-            max_wait -= 1
-            print('Waiting...')
-            time.sleep(1)
+        ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services((UART_SERVICE,))
+        
+        self._connections = set()
+        self._payload = bytearray()
+        
+        # Advertising payload setup
+        self._payload.extend(struct.pack("BB", 2, 0x01))
+        name_bytes = name.encode()
+        self._payload.extend(struct.pack("BB", len(name_bytes) + 1, 0x09))
+        self._payload.extend(name_bytes)
+        self._payload.extend(b'\x03\x03')
+        self._payload.extend(b'\x6E\x40')
+        
+        self._advertise()
+        print("BLE Serial initialized")
 
-        if wlan.status() != 3:
-            raise RuntimeError('Network connection failed')
-    
-    print('Connected')
-    status = wlan.ifconfig()
-    print('IP:', status[0])
-    return wlan
+    def _irq(self, event, data):
+        if event == _IRQ_CENTRAL_CONNECT:
+            conn_handle, _, _ = data
+            self._connections.add(conn_handle)
+            print("Connected")
+            
+        elif event == _IRQ_CENTRAL_DISCONNECT:
+            conn_handle, _, _ = data
+            if conn_handle in self._connections:
+                self._connections.remove(conn_handle)
+            print("Disconnected")
+            self._advertise()
+
+    def _advertise(self, interval_us=100000):
+        print("Starting advertising")
+        self._ble.gap_advertise(interval_us, adv_data=self._payload)
 
 def main():
-    ble = bluetooth.BLE()
-    ble.active(True)
-    print("BLE initialized")
+    ble = BLESerial()
+    while True:
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
